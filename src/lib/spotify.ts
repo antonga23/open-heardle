@@ -1,7 +1,9 @@
 import { SpotifyApi } from '@spotify/web-api-ts-sdk';
+import dotenv from 'dotenv';
+dotenv.config({ path: './.env' });
 
-const CLIENT_ID = 'c4243e0063824e4ca58023ea8c6071dc'; // Replace with your Spotify Client ID
-const REDIRECT_URI = 'http://localhost:5173/callback';
+const CLIENT_ID = process.env.SPOTIFY_CLIENT_ID as string;
+const REDIRECT_URI = process.env.SPOTIFY_REDIRECT_URI as string || 'http://localhost:5173/callback';
 const SCOPES = ['streaming', 'user-read-email', 'user-read-private', 'user-library-read'];
 
 export const spotify = SpotifyApi.withUserAuthorization(

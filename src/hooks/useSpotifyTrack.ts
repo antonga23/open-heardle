@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react';
 import { spotify } from '../lib/spotify';
 import type { Track } from '../types';
+import axios from 'axios';
+import * as cheerio from 'cheerio';
 
 export function useSpotifyTrack(isAuthenticated: boolean) {
   const [track, setTrack] = useState<Track | null>(null);
@@ -44,22 +46,51 @@ export function useSpotifyTrack(isAuthenticated: boolean) {
         attemptedTrackIds.add(spotifyTrack.id);
 
         if (!spotifyTrack.preview_url) {
-          console.log(`Track ${spotifyTrack.id} has no preview URL, trying another...`);
-          return fetchRandomTrack(attemptedTrackIds);
+          console.log(`Track ${spotifyTrack.id} has no preview URL, attempting to fetch from embed page...`);
+          const previewUrl = await fetchPreviewUrl(spotifyTrack.id);
+          if (previewUrl) {
+            setTrack({
+              id: spotifyTrack.id,
+              title: spotifyTrack.name,
+              artist: spotifyTrack.artists[0].name,
+              previewUrl,
+            });
+          } else {
+            return fetchRandomTrack(attemptedTrackIds);
+          }
+        } else {
+          setTrack({
+            id: spotifyTrack.id,
+            title: spotifyTrack.name,
+            artist: spotifyTrack.artists[0].name,
+            previewUrl: spotifyTrack.preview_url,
+          });
         }
-
-        setTrack({
-          id: spotifyTrack.id,
-          title: spotifyTrack.name,
-          artist: spotifyTrack.artists[0].name,
-          previewUrl: spotifyTrack.preview_url,
-        });
       } catch (error) {
         setError('Failed to load track. Please try again.');
         console.error('Error fetching track:', error);
       } finally {
         setIsLoading(false);
       }
+    };
+
+    const fetchPreviewUrl = async (trackId: string): Promise<string | null> => {
+      try {
+        const embedUrl = `https://open.spotify.com/embed/track/${trackId}`;
+        const response = await axios.get(embedUrl);
+        const $ = cheerio.load(response.data);
+        const scriptContent = $('script').get().map((script: cheerio.Element) => $(script).html()).find((content: string | null | undefined) => content?.includes('audioPreview'));
+        if (scriptContent) {
+          const jsonMatch = scriptContent.match(/\{"(.*)\}/);
+          if (jsonMatch) {
+            const jsonObject = JSON.parse(jsonMatch[0]);
+            return jsonObject.audioPreview.url;
+          }
+        }
+      } catch (error) {
+        console.error('Error fetching preview URL:', error);
+      }
+      return null;
     };
 
     fetchRandomTrack();
